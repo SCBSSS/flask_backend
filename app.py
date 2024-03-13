@@ -2,6 +2,9 @@ from flask import Flask, request, jsonify
 from openai import OpenAI
 # import os
 from dotenv import dotenv_values
+from ollama import Client
+import json
+import ollama
 
 config = dotenv_values(".env")
 
@@ -68,6 +71,19 @@ def create_title():
 #-H "Content-Type: application/json" \
 #-d '{"journal_entry": "today was a really weird day, but I hardly slept. I was pretty sad because of it. my dog is doing better today. I had my favorite cereal and it really motivated me. Specifically frosted flakes."}'
 
-
+@app.route('/ollama_summarize_entry', methods=['POST'])
+def ask_ollama():
+    data = request.json
+    question = "With less than 100 words, please just summarize this journal entry as if you will go in a record so the user can reflect upon it: " + data.get('journal_entry')
+    if not question:
+        return jsonify({'error': 'No question provided'}), 400
+    try:
+        client = Client(host='http://backend.auto-mate.cc:11434')
+        response = client.generate(model='llama2:13b', prompt=question, stream=False)
+        answer = response['response'] 
+        return jsonify({'answer': answer})
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+    
 if __name__ == '__main__':
     app.run(debug=True)

@@ -74,7 +74,7 @@ def create_title():
 @app.route('/ollama_summarize_entry', methods=['POST'])
 def ask_ollama():
     data = request.json
-    question = "With less than 100 words, please just summarize this journal entry as if you will go in a record so the user can reflect upon it: " + data.get('journal_entry')
+    question = "With less than 100 words, please summarize this journal entry as if it will go in a record (write it in a serious way but with conversational words, do not say \"Here's a summary...\", write it in second-person, and don't say today, instead say on this day): " + data.get('journal_entry')
     if not question:
         return jsonify({'error': 'No question provided'}), 400
     try:

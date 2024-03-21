@@ -14,7 +14,7 @@ app = Flask(__name__)
 
 
 ## example curl to test: 
-#curl -X POST http://127.0.0.1:5000/summarize-entry \  
+#curl -X POST http://127.0.0.1:80/summarize-entry \  
 #-H "Content-Type: application/json" \
 #-d '{"journal_entry": "today was a really weird day, but I hardly slept. I was pretty sad because of it. my dog is doing better today. I had my favorite cereal and it really motivated me. Specifically frosted flakes."}'
 
@@ -67,7 +67,7 @@ def create_title():
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 ## in order to test this out, you can run the following cURL command in your terminal:
-#curl -X POST http://127.0.0.1:5000/create_title \
+#curl -X POST http://127.0.0.1:80/create_title \
 #-H "Content-Type: application/json" \
 #-d '{"journal_entry": "today was a really weird day, but I hardly slept. I was pretty sad because of it. my dog is doing better today. I had my favorite cereal and it really motivated me. Specifically frosted flakes."}'
 
@@ -82,6 +82,30 @@ def ask_ollama():
         response = client.generate(model='llama2:13b', prompt=question, stream=False)
         answer = response['response'] 
         return jsonify({'answer': answer})
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+    
+@app.route('/title_generation', methods=['POST'])
+def title_generation():
+    data = request.json
+    journal_entry = data.get('journal_entry')
+
+    if not journal_entry:
+        return jsonify({'error': 'No journal entry provided'}), 400
+
+    try:
+        # Adjusted to the new interface
+        response = client.chat.completions.create(model="gpt-3.5-turbo",  # this can change, but let's keep it to this to start with
+        messages=[{
+            "role": "system",
+            "content": "You are acting as a title generator for a journaling app. Every message sent to you will be a journal entry and you will respond with a short title that fits the entry. Do not put the title in quotes or respond with anything else but the complete title." # the instruction given to the model
+        }, {
+            "role": "user",
+            "content": journal_entry # the journal entry
+        }])
+        summary = response.choices[0].message.content # the AI generated title of the journal entry
+
+        return jsonify({'summary': summary})
     except Exception as e:
         return jsonify({'error': str(e)}), 500
     

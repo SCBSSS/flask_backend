@@ -5,15 +5,59 @@ from dotenv import dotenv_values
 from ollama import Client
 import json
 import ollama
+import anthropic
 
 config = dotenv_values(".env")
 
-client = OpenAI(api_key=config['OPENAI_API_KEY'])
+anthropic_client = OpenAI(api_key=config['OPENAI_API_KEY'])
 
 app = Flask(__name__)
 
+claude_models = {
+    "opus" : "claude-3-opus-20240229",
+    "sonnet" : "claude-3-sonnet-20240229",
+    "haiku" : "claude-3-haiku-20240307",
+}
 
-## example curl to test: 
+anthropic_client = anthropic.Anthropic(
+    # defaults to os.environ.get("ANTHROPIC_API_KEY")
+    api_key=config['ANTHROPIC_API_KEY'],
+)
+
+
+def send_claude_message(model, message, sys_prompt=None):
+
+    messages = [
+        {
+            "role": "user",
+            "content": [
+                {
+                    "type": "text",
+                    "text": message
+                }
+            ]
+        }
+    ]
+
+    if sys_prompt is None:
+        response = anthropic_client.messages.create(
+            model=model,
+            max_tokens=1000,
+            temperature=0,
+            messages=messages
+        )
+    else:
+        response = anthropic_client.messages.create(
+            model=model,
+            max_tokens=1000,
+            temperature=0,
+            system=sys_prompt,
+            messages=messages
+        )
+    return response.content[0].text
+
+
+## example curl to test:
 # curl -X POST http://127.0.0.1:80/summarize-entry \
 # -H "Content-Type: application/json" \
 # -d '{"journal_entry": "today was a really weird day, but I hardly slept. I was pretty sad because of it. my dog is doing better today. I had my favorite cereal and it really motivated me. Specifically frosted flakes."}'
@@ -28,9 +72,9 @@ def summarize_entry():
 
     try:
         # Adjusted to the new interface
-        response = client.chat.completions.create(model="gpt-3.5-turbo",
-                                                  # this can change, but let's keep it to this to start with
-                                                  messages=[{
+        response = anthropic_client.chat.completions.create(model="gpt-3.5-turbo",
+                                                            # this can change, but let's keep it to this to start with
+                                                            messages=[{
                                                       "role": "system",
                                                       "content": "Summarize the following journal entry. Write the summary as if you're telling the person what they did or felt that day. Start by saying /'On this day/'."
                                                       # the instruction given to the model
@@ -52,7 +96,7 @@ def create_title():
     if not journal_entry:
         return jsonify({'error': 'No journal entry provided'}), 400
     try:
-        response = client.chat.completions.create(
+        response = anthropic_client.chat.completions.create(
             model="gpt-3.5-turbo",
             messages=[
                 {
@@ -94,8 +138,11 @@ def ask_ollama():
 
 @app.route('/title_generation', methods=['POST'])
 def title_generation():
+    print("Title generation!")
     data = request.json
     journal_entry = data.get('journal_entry')
+    system_prompt = "You are acting as a title generator for a journaling app. Every message sent to you will be a journal entry and you will respond with a short title that fits the entry. Do not put the title in quotes or respond with anything else but the complete title."
+    print(journal_entry)
 
     if not journal_entry:
         return jsonify({'error': 'No journal entry provided'}), 400
@@ -110,23 +157,63 @@ def title_generation():
         #     "role": "user",
         #     "content": journal_entry # the journal entry
         # }])
-        messages = [{
-            "role": "system",
-            "content": "You are acting as a title generator for a journaling app. Every message sent to you will be a journal entry and you will respond with a short title that fits the entry. Do not put the title in quotes or respond with anything else but the complete title."
-            # the instruction given to the model
-        }, {
-            "role": "user",
-            "content": journal_entry  # the journal entry
-        }]
-        client = Client(host='http://backend.auto-mate.cc:11434')
-        response = client.chat(model='llama2:13b', messages=messages, stream=False)
-        answer = response['message']['content']
+
+        # messages = [{
+        #     "role": "system",
+        #     "content": system_prompt,
+        #     # the instruction given to the model
+        # }, {
+        #     "role": "user",
+        #     "content": journal_entry  # the journal entry
+        # }]
+        # ollamaClient = Client(host='http://backend.auto-mate.cc:11434')
+        # response = ollamaClient.chat(model='llama2:13b', messages=messages, stream=False)
+        # answer = response['message']['content']
+        answer = send_claude_message(claude_models['haiku'], journal_entry, system_prompt)
 
         # summary = response.choices[0].message.content  # the AI generated title of the journal entry
 
         return jsonify({'summary': answer})
     except Exception as e:
         return jsonify({'error': str(e)}), 500
+
+@app.route('/generate_questions', methods=['POST'])
+def generate_questions():
+    data = request.json
+    print("Data: ", data)
+    entries = data.get('past_entries')
+    system_prompt = '''
+You are an AI assistant that helps users reflect on their journal entries by generating insightful follow-up questions. Your role is to encourage users to think deeper about their experiences, emotions, and personal growth.
+You will be given a list of previous journal entries. Generate 3 thought-provoking questions in JSON format based on past entries. These questions should be open-ended, empathetic, and tailored to the content of the user's entries. Aim to encourage self-reflection, emotional exploration, and personal development.
+Your response will be a list of 3 questions in JSON format. Your response will be a json list with 3 strings. You will not include anything else in your response except the json formatted list. Your response should be parseable as JSON and should not include any intro or conclusion or any non-json elements.
+Example Output:
+[
+  "What did you learn from this experience?",
+  "How did this event make you feel?",
+  "What would you do differently next time?"
+]
+'''
+    if not entries:
+        return jsonify({'error': 'No journal entry provided'}), 400
+    message = ""
+    for i,x in enumerate(entries):
+        message += f"{i+1}: {x}\n"
+
+    try:
+        response = send_claude_message(claude_models['haiku'], message, system_prompt)
+        print(response)
+        response = json.loads(response)
+        print("response valid")
+        if len(response) != 3:
+            raise Exception("Expected 3 questions, got something else")
+        for question in response:
+            if not isinstance(question, str):
+                raise Exception("Expected a string, got something else")
+        return jsonify(response)
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
 
 
 if __name__ == '__main__':

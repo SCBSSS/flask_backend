@@ -1,10 +1,14 @@
 from flask import Flask, request, jsonify
 from openai import OpenAI
-# import os
+import os
 from dotenv import dotenv_values
 from ollama import Client
 import json
 import ollama
+from collections import Counter
+import requests
+from bs4 import BeautifulSoup
+from googleapiclient.discovery import build
 
 config = dotenv_values(".env")
 
@@ -108,6 +112,44 @@ def title_generation():
         return jsonify({'summary': summary})
     except Exception as e:
         return jsonify({'error': str(e)}), 500
+    
+@app.route('/search_meditation_video', methods=['POST'])
+def search_meditation_video():
+    data = request.json
+    entries = data.get('entries')
+    if not entries:
+        return jsonify({'error': 'No entries provided'}), 400
+
+    # # of words in the entries
+    word_counts = Counter()
+    for entry in entries:
+        words = entry.split()
+        word_counts.update(words)
+
+    # Top 5 most frequent words
+    most_frequent_words = [word for word, _ in word_counts.most_common(5)]
+
+    # make search query
+    search_query = "meditation " + " ".join(most_frequent_words)
+
+    # init YouTube API client
+    youtube = build('youtube', 'v3', developerKey=config['GOOGLE_API_KEY'])
+
+    # search for videos on YouTube
+    search_response = youtube.search().list(
+        q=search_query,
+        part='id,snippet',
+        maxResults=1,
+        type='video'
+    ).execute()
+
+    # pull link to the first video URL
+    if search_response['items']:
+        video_id = search_response['items'][0]['id']['videoId']
+        video_url = f"https://www.youtube.com/watch?v={video_id}"
+        return jsonify({'video_url': video_url})
+    else:
+        return jsonify({'error': 'No videos found'}), 404
     
 if __name__ == '__main__':
     app.run(debug=True, host='0.0.0.0', port=80)

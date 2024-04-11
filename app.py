@@ -142,7 +142,6 @@ def title_generation():
     data = request.json
     journal_entry = data.get('journal_entry')
     system_prompt = "You are acting as a title generator for a journaling app. Every message sent to you will be a journal entry and you will respond with a short title that fits the entry. Do not put the title in quotes or respond with anything else but the complete title."
-    print(journal_entry)
 
     if not journal_entry:
         return jsonify({'error': 'No journal entry provided'}), 400
@@ -157,19 +156,19 @@ def title_generation():
         #     "role": "user",
         #     "content": journal_entry # the journal entry
         # }])
-
-        # messages = [{
-        #     "role": "system",
-        #     "content": system_prompt,
-        #     # the instruction given to the model
-        # }, {
-        #     "role": "user",
-        #     "content": journal_entry  # the journal entry
-        # }]
-        # ollamaClient = Client(host='http://backend.auto-mate.cc:11434')
-        # response = ollamaClient.chat(model='llama2:13b', messages=messages, stream=False)
-        # answer = response['message']['content']
-        answer = send_claude_message(claude_models['haiku'], journal_entry, system_prompt)
+        #
+        messages = [{
+            "role": "system",
+            "content": system_prompt,
+            # the instruction given to the model
+        }, {
+            "role": "user",
+            "content": journal_entry  # the journal entry
+        }]
+        ollamaClient = Client(host='http://backend.auto-mate.cc:11434')
+        response = ollamaClient.chat(model='llama2:13b', messages=messages, stream=False)
+        answer = response['message']['content']
+        # answer = send_claude_message(claude_models['haiku'], journal_entry, system_prompt)
 
         # summary = response.choices[0].message.content  # the AI generated title of the journal entry
 
@@ -180,7 +179,6 @@ def title_generation():
 @app.route('/generate_questions', methods=['POST'])
 def generate_questions():
     data = request.json
-    print("Data: ", data)
     entries = data.get('past_entries')
     system_prompt = '''
 You are an AI assistant that helps users reflect on their journal entries by generating insightful follow-up questions. Your role is to encourage users to think deeper about their experiences, emotions, and personal growth.
@@ -198,17 +196,23 @@ Example Output:
     message = ""
     for i,x in enumerate(entries):
         message += f"{i+1}: {x}\n"
+    print(f"Prompt: {message}")
 
     try:
         response = send_claude_message(claude_models['haiku'], message, system_prompt)
-        print(response)
+        print(f"Len Prompt: {len(message)}, Len Response: {len(response)}")
+        inputCost = len(message) / 4.0 * 0.25 / 1e6
+        outputCost = len(response) / 4.0 * 1.25 / 1e6
+        total = inputCost+ outputCost
+        print("Input Cost: ${:0.7f}, Output Cost: ${:0.7f}, Total Cost: ${:0.7f}".format(inputCost, outputCost,inputCost+outputCost))
+        print(f"Approximately {int(1/total)} queries per dollar")
         response = json.loads(response)
-        print("response valid")
-        if len(response) != 3:
+        if not isinstance(response,list) or len(response) != 3:
             raise Exception("Expected 3 questions, got something else")
         for question in response:
             if not isinstance(question, str):
                 raise Exception("Expected a string, got something else")
+        print(response)
         return jsonify(response)
     except Exception as e:
         return jsonify({'error': str(e)}), 500

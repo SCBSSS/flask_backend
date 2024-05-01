@@ -140,7 +140,7 @@ def ask_ollama():
 def title_generation():
     data = request.json
     journal_entry = data.get('journal_entry')
-    system_prompt = "You are acting as a title generator for a journaling app. Every message sent to you will be a journal entry and you will respond with a short title that fits the entry. Do not put the title in quotes or respond with anything else but the complete title."
+    system_prompt = "You are acting as a title generator for a journaling app. Every message sent to you will be a journal entry and you will respond with a short title that fits the entry. Format as the response as JSON with the title being the property used"
 
     if not journal_entry:
         return jsonify({'error': 'No journal entry provided'}), 400
@@ -166,7 +166,7 @@ def title_generation():
         }]
         ollamaClient = Client(host='http://backend.auto-mate.cc:11434')
         response = ollamaClient.chat(model='llama2:13b', messages=messages, stream=False)
-        answer = response['message']['content']
+        answer = json.loads(response['message']['content'])['title']
         # answer = send_claude_message(claude_models['haiku'], journal_entry, system_prompt)
 
         # summary = response.choices[0].message.content  # the AI generated title of the journal entry
@@ -181,7 +181,7 @@ def generate_questions():
     entries = data.get('past_entries')
     system_prompt = '''
 You are an AI assistant that helps users reflect on their journal entries by generating insightful writing prompt questions. Your role is to encourage users to think deeper about their experiences, emotions, and personal growth.
-You will be given a list of previous journal entries. Generate 3 thought-provoking questions in JSON format. These questions should be open-ended and encourage the user to respond in their journal entry.
+You will be given a list of previous journal entries. Based on all of the entries generate 3 thought-provoking questions in JSON format. These questions should be open-ended and encourage the user to respond in their journal entry.
 Your response will be a list of 3 questions in JSON format. Your response will be a json list with 3 strings. You will not include anything else in your response except the json formatted list. Your response should be parseable as JSON and should not include any intro or conclusion or any non-json elements.
 Do not refer to previous entries as "this" since your output and previous entries will not be visible.
 Example Output:

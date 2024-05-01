@@ -180,9 +180,10 @@ def generate_questions():
     data = request.json
     entries = data.get('past_entries')
     system_prompt = '''
-You are an AI assistant that helps users reflect on their journal entries by generating insightful follow-up questions. Your role is to encourage users to think deeper about their experiences, emotions, and personal growth.
-You will be given a list of previous journal entries. Generate 3 thought-provoking questions in JSON format based on past entries. These questions should be open-ended, empathetic, and tailored to the content of the user's entries. Aim to encourage self-reflection, emotional exploration, and personal development.
+You are an AI assistant that helps users reflect on their journal entries by generating insightful writing prompt questions. Your role is to encourage users to think deeper about their experiences, emotions, and personal growth.
+You will be given a list of previous journal entries. Generate 3 thought-provoking questions in JSON format. These questions should be open-ended and encourage the user to respond in their journal entry.
 Your response will be a list of 3 questions in JSON format. Your response will be a json list with 3 strings. You will not include anything else in your response except the json formatted list. Your response should be parseable as JSON and should not include any intro or conclusion or any non-json elements.
+Do not refer to previous entries as "this" since your output and previous entries will not be visible.
 Example Output:
 [
   "What did you learn from this experience?",

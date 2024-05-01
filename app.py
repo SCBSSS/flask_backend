@@ -1,11 +1,15 @@
 from flask import Flask, request, jsonify
 from openai import OpenAI
-# import os
+import os
 from dotenv import dotenv_values
 from ollama import Client
 import json
 import ollama
 import anthropic
+from collections import Counter
+import requests
+from bs4 import BeautifulSoup
+from googleapiclient.discovery import build
 
 config = dotenv_values(".env")
 
@@ -57,10 +61,10 @@ def send_claude_message(model, message, sys_prompt=None):
     return response.content[0].text
 
 
-## example curl to test:
-# curl -X POST http://127.0.0.1:80/summarize-entry \
-# -H "Content-Type: application/json" \
-# -d '{"journal_entry": "today was a really weird day, but I hardly slept. I was pretty sad because of it. my dog is doing better today. I had my favorite cereal and it really motivated me. Specifically frosted flakes."}'
+## example curl to test: 
+#curl -X POST http://127.0.0.1:80/summarize-entry \  
+#-H "Content-Type: application/json" \
+#-d '{"journal_entry": "today was a really weird day, but I hardly slept. I was pretty sad because of it. my dog is doing better today. I had my favorite cereal and it really motivated me. Specifically frosted flakes."}'
 
 @app.route('/summarize-entry', methods=['POST'])
 def summarize_entry():
@@ -87,8 +91,7 @@ def summarize_entry():
         return jsonify({'summary': summary})
     except Exception as e:
         return jsonify({'error': str(e)}), 500
-
-
+    
 @app.route('/create_title', methods=['POST'])
 def create_title():
     data = request.json
@@ -113,12 +116,10 @@ def create_title():
         return jsonify({'title': title})
     except Exception as e:
         return jsonify({'error': str(e)}), 500
-
-
 ## in order to test this out, you can run the following cURL command in your terminal:
-# curl -X POST http://127.0.0.1:80/create_title \
-# -H "Content-Type: application/json" \
-# -d '{"journal_entry": "today was a really weird day, but I hardly slept. I was pretty sad because of it. my dog is doing better today. I had my favorite cereal and it really motivated me. Specifically frosted flakes."}'
+#curl -X POST http://127.0.0.1:80/create_title \
+#-H "Content-Type: application/json" \
+#-d '{"journal_entry": "today was a really weird day, but I hardly slept. I was pretty sad because of it. my dog is doing better today. I had my favorite cereal and it really motivated me. Specifically frosted flakes."}'
 
 @app.route('/ollama_summarize_entry', methods=['POST'])
 def ask_ollama():
@@ -134,11 +135,9 @@ def ask_ollama():
         return jsonify({'answer': answer})
     except Exception as e:
         return jsonify({'error': str(e)}), 500
-
-
+    
 @app.route('/title_generation', methods=['POST'])
 def title_generation():
-    print("Title generation!")
     data = request.json
     journal_entry = data.get('journal_entry')
     system_prompt = "You are acting as a title generator for a journaling app. Every message sent to you will be a journal entry and you will respond with a short title that fits the entry. Do not put the title in quotes or respond with anything else but the complete title."
@@ -217,8 +216,43 @@ Example Output:
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 
+@app.route('/search_meditation_video', methods=['POST'])
+def search_meditation_video():
+    data = request.json
+    entries = data.get('entries')
+    if not entries:
+        return jsonify({'error': 'No entries provided'}), 400
 
+    # # of words in the entries
+    word_counts = Counter()
+    for entry in entries:
+        words = entry.split()
+        word_counts.update(words)
 
+    # Top 5 most frequent words
+    most_frequent_words = [word for word, _ in word_counts.most_common(5)]
+
+    # make search query
+    search_query = "meditation " + " ".join(most_frequent_words)
+
+    # init YouTube API client
+    youtube = build('youtube', 'v3', developerKey=config['GOOGLE_API_KEY'])
+
+    # search for videos on YouTube
+    search_response = youtube.search().list(
+        q=search_query,
+        part='id,snippet',
+        maxResults=1,
+        type='video'
+    ).execute()
+
+    # pull link to the first video URL
+    if search_response['items']:
+        video_id = search_response['items'][0]['id']['videoId']
+        video_url = f"https://www.youtube.com/watch?v={video_id}"
+        return jsonify({'video_url': video_url})
+    else:
+        return jsonify({'error': 'No videos found'}), 404
 
 if __name__ == '__main__':
     app.run(debug=True, host='0.0.0.0', port=80)

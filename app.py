@@ -61,8 +61,8 @@ def send_claude_message(model, message, sys_prompt=None):
     return response.content[0].text
 
 
-## example curl to test: 
-#curl -X POST http://127.0.0.1:80/summarize-entry \  
+## example curl to test:
+#curl -X POST http://127.0.0.1:80/summarize-entry \
 #-H "Content-Type: application/json" \
 #-d '{"journal_entry": "today was a really weird day, but I hardly slept. I was pretty sad because of it. my dog is doing better today. I had my favorite cereal and it really motivated me. Specifically frosted flakes."}'
 
@@ -91,7 +91,7 @@ def summarize_entry():
         return jsonify({'summary': summary})
     except Exception as e:
         return jsonify({'error': str(e)}), 500
-    
+
 @app.route('/create_title', methods=['POST'])
 def create_title():
     data = request.json
@@ -129,13 +129,13 @@ def ask_ollama():
     if not question:
         return jsonify({'error': 'No question provided'}), 400
     try:
-        client = Client(host='http://backend.auto-mate.cc:11434')
+        client = Client(host='http://backend.scbsss.com:11434')
         response = client.generate(model='llama2:13b', prompt=question, stream=False)
         answer = response['response']
         return jsonify({'answer': answer})
     except Exception as e:
         return jsonify({'error': str(e)}), 500
-    
+
 @app.route('/title_generation', methods=['POST'])
 def title_generation():
     data = request.json
@@ -164,7 +164,7 @@ def title_generation():
             "role": "user",
             "content": journal_entry  # the journal entry
         }]
-        ollamaClient = Client(host='http://backend.auto-mate.cc:11434')
+        ollamaClient = Client(host='http://backend.scbsss.com:11434')
         response = ollamaClient.chat(model='llama2:13b', messages=messages, stream=False)
         answer = json.loads(response['message']['content'])['title']
         # answer = send_claude_message(claude_models['haiku'], journal_entry, system_prompt)
